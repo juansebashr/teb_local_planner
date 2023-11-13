@@ -61,29 +61,31 @@ namespace teb_local_planner {
  *
  * @see TebOptimalPlanner::AddEdgesShortestPath
  */
-class EdgeShortestPath : public BaseTebBinaryEdge<1, double, VertexPose, VertexPose> {
-public:
-  /**
-   * @brief Construct edge.
-   */
-  EdgeShortestPath() { this->setMeasurement(0.); }
+class EdgeShortestPath : public BaseTebBinaryEdge<1, double, VertexPose, VertexPose>
+{
+   public:
+    /**
+     * @brief Construct edge.
+     */
+    EdgeShortestPath() { this->setMeasurement(0.); }
 
-  /**
-   * @brief Actual cost function
-   */
-  void computeError() {
-    ROS_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeShortestPath()");
-    const VertexPose *pose1 = static_cast<const VertexPose*>(_vertices[0]);
-    const VertexPose *pose2 = static_cast<const VertexPose*>(_vertices[1]);
-    _error[0] = (pose2->position() - pose1->position()).norm();
+    /**
+     * @brief Actual cost function
+     */
+    void computeError()
+    {
+        ROS_ASSERT_MSG(cfg_, "You must call setTebConfig on EdgeShortestPath()");
+        const VertexPose* pose1 = static_cast<const VertexPose*>(_vertices[0]);
+        const VertexPose* pose2 = static_cast<const VertexPose*>(_vertices[1]);
+        _error[0] = (pose2->position() - pose1->position()).norm();
 
-    ROS_ASSERT_MSG(std::isfinite(_error[0]), "EdgeShortestPath::computeError() _error[0]=%f\n", _error[0]);
-  }
+        ROS_ASSERT_MSG(std::isfinite(_error[0]), "EdgeShortestPath::computeError() _error[0]=%f\n", _error[0]);
+    }
 
-public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
-} // end namespace
+}  // namespace teb_local_planner
 
 #endif /* EDGE_SHORTEST_PATH_H_ */

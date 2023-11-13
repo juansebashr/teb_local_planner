@@ -43,13 +43,11 @@
 #pragma once
 
 #include <teb_local_planner/g2o_types/base_teb_edges.h>
-#include <teb_local_planner/g2o_types/vertex_timediff.h>
 #include <teb_local_planner/g2o_types/vertex_pose.h>
+#include <teb_local_planner/g2o_types/vertex_timediff.h>
 #include <teb_local_planner/robot_footprint_model.h>
 
-namespace teb_local_planner
-{
-
+namespace teb_local_planner {
 
 /**
  * @class EdgeVelocityObstacleRatio
@@ -65,84 +63,82 @@ namespace teb_local_planner
  */
 class EdgeVelocityObstacleRatio : public BaseTebMultiEdge<2, const Obstacle*>
 {
-public:
-
-  /**
-   * @brief Construct edge.
-   */
-  EdgeVelocityObstacleRatio()
-  {
-    // The three vertices are two poses and one time difference
-    this->resize(3); // Since we derive from a g2o::BaseMultiEdge, set the desired number of vertices
-  }
-
-  /**
-   * @brief Actual cost function
-   */
-  void computeError()
-  {
-    ROS_ASSERT_MSG(cfg_ && _measurement, "You must call setTebConfig() and setObstacle() on EdgeVelocityObstacleRatio()");
-    const VertexPose* conf1 = static_cast<const VertexPose*>(_vertices[0]);
-    const VertexPose* conf2 = static_cast<const VertexPose*>(_vertices[1]);
-    const VertexTimeDiff* deltaT = static_cast<const VertexTimeDiff*>(_vertices[2]);
-
-    const Eigen::Vector2d deltaS = conf2->estimate().position() - conf1->estimate().position();
-
-    double dist = deltaS.norm();
-    const double angle_diff = g2o::normalize_theta(conf2->theta() - conf1->theta());
-    if (cfg_->trajectory.exact_arc_length && angle_diff != 0)
+   public:
+    /**
+     * @brief Construct edge.
+     */
+    EdgeVelocityObstacleRatio()
     {
-        double radius =  dist/(2*sin(angle_diff/2));
-        dist = fabs( angle_diff * radius ); // actual arg length!
+        // The three vertices are two poses and one time difference
+        this->resize(3);  // Since we derive from a g2o::BaseMultiEdge, set the desired number of vertices
     }
-    double vel = dist / deltaT->estimate();
 
-    vel *= fast_sigmoid( 100 * (deltaS.x()*cos(conf1->theta()) + deltaS.y()*sin(conf1->theta())) ); // consider direction
+    /**
+     * @brief Actual cost function
+     */
+    void computeError()
+    {
+        ROS_ASSERT_MSG(cfg_ && _measurement,
+                       "You must call setTebConfig() and setObstacle() on EdgeVelocityObstacleRatio()");
+        const VertexPose* conf1 = static_cast<const VertexPose*>(_vertices[0]);
+        const VertexPose* conf2 = static_cast<const VertexPose*>(_vertices[1]);
+        const VertexTimeDiff* deltaT = static_cast<const VertexTimeDiff*>(_vertices[2]);
 
-    const double omega = angle_diff / deltaT->estimate();
+        const Eigen::Vector2d deltaS = conf2->estimate().position() - conf1->estimate().position();
 
-    double dist_to_obstacle = cfg_->robot_model->calculateDistance(conf1->pose(), _measurement);
+        double dist = deltaS.norm();
+        const double angle_diff = g2o::normalize_theta(conf2->theta() - conf1->theta());
+        if (cfg_->trajectory.exact_arc_length && angle_diff != 0)
+        {
+            double radius = dist / (2 * sin(angle_diff / 2));
+            dist = fabs(angle_diff * radius);  // actual arg length!
+        }
+        double vel = dist / deltaT->estimate();
 
-    double ratio;
-    if (dist_to_obstacle < cfg_->obstacles.obstacle_proximity_lower_bound)
-      ratio = 0;
-    else if (dist_to_obstacle > cfg_->obstacles.obstacle_proximity_upper_bound)
-      ratio = 1;
-    else
-      ratio = (dist_to_obstacle - cfg_->obstacles.obstacle_proximity_lower_bound) /
-      (cfg_->obstacles.obstacle_proximity_upper_bound - cfg_->obstacles.obstacle_proximity_lower_bound);
-    ratio *= cfg_->obstacles.obstacle_proximity_ratio_max_vel;
+        vel *= fast_sigmoid(
+            100 * (deltaS.x() * cos(conf1->theta()) + deltaS.y() * sin(conf1->theta())));  // consider direction
 
-    const double max_vel_fwd = ratio * cfg_->robot.max_vel_x;
-    const double max_omega = ratio * cfg_->robot.max_vel_theta;
-    _error[0] = penaltyBoundToInterval(vel, max_vel_fwd, 0);
-    _error[1] = penaltyBoundToInterval(omega, max_omega, 0);
+        const double omega = angle_diff / deltaT->estimate();
 
-    ROS_ASSERT_MSG(std::isfinite(_error[0]) || std::isfinite(_error[1]), "EdgeVelocityObstacleRatio::computeError() _error[0]=%f , _error[1]=%f\n",_error[0],_error[1]);
-  }
+        double dist_to_obstacle = cfg_->robot_model->calculateDistance(conf1->pose(), _measurement);
 
-  /**
-   * @brief Set pointer to associated obstacle for the underlying cost function
-   * @param obstacle 2D position vector containing the position of the obstacle
-   */
-  void setObstacle(const Obstacle* obstacle)
-  {
-    _measurement = obstacle;
-  }
+        double ratio;
+        if (dist_to_obstacle < cfg_->obstacles.obstacle_proximity_lower_bound)
+            ratio = 0;
+        else if (dist_to_obstacle > cfg_->obstacles.obstacle_proximity_upper_bound)
+            ratio = 1;
+        else
+            ratio = (dist_to_obstacle - cfg_->obstacles.obstacle_proximity_lower_bound) /
+                    (cfg_->obstacles.obstacle_proximity_upper_bound - cfg_->obstacles.obstacle_proximity_lower_bound);
+        ratio *= cfg_->obstacles.obstacle_proximity_ratio_max_vel;
 
-  /**
-   * @brief Set all parameters at once
-   * @param cfg TebConfig class
-   * @param obstacle 2D position vector containing the position of the obstacle
-   */
-  void setParameters(const TebConfig& cfg, const Obstacle* obstacle)
-  {
-    cfg_ = &cfg;
-    _measurement = obstacle;
-  }
+        const double max_vel_fwd = ratio * cfg_->robot.max_vel_x;
+        const double max_omega = ratio * cfg_->robot.max_vel_theta;
+        _error[0] = penaltyBoundToInterval(vel, max_vel_fwd, 0);
+        _error[1] = penaltyBoundToInterval(omega, max_omega, 0);
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+        ROS_ASSERT_MSG(std::isfinite(_error[0]) || std::isfinite(_error[1]),
+                       "EdgeVelocityObstacleRatio::computeError() _error[0]=%f , _error[1]=%f\n", _error[0], _error[1]);
+    }
 
+    /**
+     * @brief Set pointer to associated obstacle for the underlying cost function
+     * @param obstacle 2D position vector containing the position of the obstacle
+     */
+    void setObstacle(const Obstacle* obstacle) { _measurement = obstacle; }
+
+    /**
+     * @brief Set all parameters at once
+     * @param cfg TebConfig class
+     * @param obstacle 2D position vector containing the position of the obstacle
+     */
+    void setParameters(const TebConfig& cfg, const Obstacle* obstacle)
+    {
+        cfg_ = &cfg;
+        _measurement = obstacle;
+    }
+
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
-} // end namespace
+}  // namespace teb_local_planner
